@@ -1,19 +1,14 @@
-from constants import HTTPStatus
+from constants import HTTPStatus, SENDER_FUNCTION_TYPE, RequestDict, HANDLER_TYPE, HANDLER_RET_TYPE
 
-from typing import Callable, Any
-
-FUNCTION = Callable[..., Any]
-# handler type function will accept a dictionary of request and a function that will be used to send response
-# handler will return status code, header, body for the response message
-HANDLER_RET_TYPE = tuple[HTTPStatus, dict[str, Any], bytes]
-HANDLER_TYPE = Callable[[dict[str, Any], FUNCTION], HANDLER_RET_TYPE]
+from typing import Callable
+DECORATOR_TYPE = Callable[[HANDLER_TYPE], HANDLER_TYPE]
 
 # --------------------------------------------------------------
 # ROUTES: (method, path.lower()) → handler
 # --------------------------------------------------------------
 ROUTES: dict[tuple[str, str], HANDLER_TYPE] = {}
 
-def route(method: str, path: str) -> FUNCTION:
+def route(method: str, path: str) -> DECORATOR_TYPE:
     """
     Decorator to register an endpoint.
     Example:
@@ -31,15 +26,15 @@ def route(method: str, path: str) -> FUNCTION:
     return decorator
 
 # Shortcuts
-get: Callable[[str], FUNCTION]     = lambda path: route("GET", path)
-post: Callable[[str], FUNCTION]    = lambda path: route("POST", path)
-delete: Callable[[str], FUNCTION]  = lambda path: route("DELETE", path)
-put: Callable[[str], FUNCTION]     = lambda path: route("PUT", path)
+get: Callable[[str], DECORATOR_TYPE]     = lambda path: route("GET", path)
+post: Callable[[str], DECORATOR_TYPE]    = lambda path: route("POST", path)
+delete: Callable[[str], DECORATOR_TYPE]  = lambda path: route("DELETE", path)
+put: Callable[[str], DECORATOR_TYPE]     = lambda path: route("PUT", path)
 
 # --------------------------------------------------------------
 # Dispatcher
 # --------------------------------------------------------------
-def dispatch(req: dict[str, Any], send_function: FUNCTION) -> HTTPStatus:
+def dispatch(req: RequestDict, send_function: SENDER_FUNCTION_TYPE) -> HTTPStatus:
     """
     Call the correct handler if route exists.
     Returns True if handled.
@@ -56,6 +51,6 @@ def dispatch(req: dict[str, Any], send_function: FUNCTION) -> HTTPStatus:
         send_function(status, headers, body)
     except Exception as e:
         print("Handler error:", e)
-        return HTTPStatus.INTERNAL_SERVER_ERROR
+        return HTTPStatus.INTERNAL_ERROR
 
     return HTTPStatus.OK

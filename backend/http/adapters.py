@@ -1,5 +1,4 @@
-from constants import HTTPStatus, END_OF_LINE
-from typing import Any
+from constants import HTTPStatus, END_OF_LINE, RequestDict
 
 def create_response(
     status: HTTPStatus,
@@ -21,7 +20,7 @@ def create_response(
     header_part = END_OF_LINE.join(lines)
     return header_part.encode("utf-8") + b"\r\n" + body
 
-def parse_request(raw: str) -> dict[str, Any] | None:
+def parse_request(raw: str) -> RequestDict | None:
     """Parse raw HTTP request → dict."""
     lines = raw.split(END_OF_LINE)
     if not lines:
@@ -33,7 +32,7 @@ def parse_request(raw: str) -> dict[str, Any] | None:
     method, full_path = parts[0], parts[1]
 
     path = full_path
-    query = {}
+    query: dict[str, str] = {}
     if "?" in full_path:
         path, qstr = full_path.split("?", 1)
         for pair in qstr.split("&"):
@@ -49,11 +48,11 @@ def parse_request(raw: str) -> dict[str, Any] | None:
             headers[name.strip().lower()] = value.strip()
         i += 1
 
-    body = b""
+    body = ""
     if "content-length" in headers:
         length = int(headers["content-length"])
         body_str = END_OF_LINE.join(lines[i+1:])
-        body = body_str.encode('utf-8').strip()[:length]
+        body = body_str[:length].strip()
 
     return {
         "method": method,
