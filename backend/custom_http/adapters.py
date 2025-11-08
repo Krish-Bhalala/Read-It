@@ -1,11 +1,33 @@
-from constants import HTTPStatus, END_OF_LINE, RequestDict
+import sys
+import os
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(parent_dir)
+
+from constants import HTTPStatus, END_OF_LINE, RequestDictType
+
+def make_cors_headers(request_headers: dict[str, str]) -> dict[str, str]:
+    origin = request_headers.get("origin")
+    if origin in ("http://localhost:8888", "http://127.0.0.1:8888"):
+        return {
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "GET, POST, DELETE",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+            "Access-Control-Allow-Credentials": "true",
+        }
+    return {}
+
 
 def create_response(
     status: HTTPStatus,
-    body: bytes = b"",
+    body_data: str | bytes = "",
     content_type: str = "text/html",
     extra_headers: dict[str, str] | None = None
 ) -> bytes:
+    body = b""
+    try:
+        body = body_data.encode("utf-8", "ignore") if isinstance(body_data, str) else body_data
+    except Exception as e:
+        print(f"[ADAPTERS][create_response] error in converting {body_data} {e}")
 
     """Build full HTTP response bytes."""
     lines = [f"HTTP/1.1 {status.value} {status.reason}"]
@@ -18,9 +40,9 @@ def create_response(
 
     lines.append("")
     header_part = END_OF_LINE.join(lines)
-    return header_part.encode("utf-8") + b"\r\n" + body
+    return header_part.encode("utf-8", "ignore") + b"\r\n" + body
 
-def parse_request(raw: str) -> RequestDict | None:
+def parse_request(raw: str) -> RequestDictType | None:
     """Parse raw HTTP request → dict."""
     lines = raw.split(END_OF_LINE)
     if not lines:

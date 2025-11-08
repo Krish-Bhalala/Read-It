@@ -1,5 +1,5 @@
 from enum import IntEnum
-from typing import Callable, Any
+from typing import Callable, Any, TypedDict
 
 class HTTPStatus(IntEnum):
     OK = 200
@@ -11,6 +11,7 @@ class HTTPStatus(IntEnum):
     METHOD_NOT_ALLOWED = 405
     CONFLICT = 409
     INTERNAL_ERROR = 500
+    RATE_LIMITED = 429
 
     @property
     def reason(self) -> str:
@@ -20,20 +21,28 @@ END_OF_LINE = "\r\n"
 STATIC_DIR = "static"
 
 # Common type hints
-FUNCTION_TYPE = Callable[..., Any]
-from typing import TypedDict
+# FunctionType = Callable[..., Any]
 
-class RequestDict(TypedDict):
+class RequestDictType(TypedDict):
     method: str
     path: str
     query: dict[str, str]
     headers: dict[str, str]
     body: str
 
-# Used by factory function in handle_client to generate sender instances for each connection
-SENDER_FUNCTION_TYPE = Callable[[HTTPStatus, dict[str, str], bytes], None]
 
 # handler type function will accept a dictionary of request and a function that will be used to send response
 # handler will return status code, header, body for the response message
-HANDLER_RET_TYPE = tuple[HTTPStatus, dict[str, Any], bytes]
-HANDLER_TYPE = Callable[[RequestDict, SENDER_FUNCTION_TYPE], HANDLER_RET_TYPE]
+# HandlerReturnType = tuple[HTTPStatus, dict[str, Any], bytes]
+class HTTPResponseType(TypedDict, total=False):
+    status: HTTPStatus
+    header: dict[str, Any]
+    body: str
+
+# Used by factory function in handle_client to generate sender instances for each connection
+SenderFunctionType = Callable[[HTTPResponseType], None]
+
+HandlerFunctionType = Callable[[RequestDictType, SenderFunctionType], HTTPResponseType]
+
+
+DB_ADDR: tuple[str, int] = ("cormorant.cs.umanitoba.ca", 50042)

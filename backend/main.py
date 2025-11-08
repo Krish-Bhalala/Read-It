@@ -4,7 +4,7 @@ import threading
 import os
 import time
 from constants import HTTPStatus, STATIC_DIR
-from http.adapters import parse_request, create_response
+from custom_http.adapters import parse_request, create_response
 from socket_io.connection import send_response, handle_connection
 from server.router import dispatch
 from server.handlers import *
@@ -17,13 +17,14 @@ def now_ts() -> int:
     return int(time.time() * 1000)
 
 # === Static file serving ===
-def serve_static(rel_path: str):
+def serve_static(rel_path: str) -> tuple[str | bytes, str, HTTPStatus]:
     path = os.path.abspath(os.path.join(STATIC_DIR, rel_path.lstrip("/")))
+    print(f"[serve_static] serving static file from path: {path}")
     if not path.startswith(os.path.abspath(STATIC_DIR)):
         # prevent accessing things outside the STATIC_DIR
-        return b"Forbidden", "text/plain", HTTPStatus.FORBIDDEN
+        return "Forbidden", "text/plain", HTTPStatus.FORBIDDEN
     if not os.path.isfile(path):
-        return b"Not Found", "text/plain", HTTPStatus.NOT_FOUND
+        return f"File {path} Not Found", "text/plain", HTTPStatus.NOT_FOUND
 
     # get mime from static file extension
     mime = {
@@ -36,10 +37,11 @@ def serve_static(rel_path: str):
 
     # open and send the file data
     try:
-        with open(path, "rb") as f:
+        with open(path, 'rb') as f:
             return f.read(), mime, HTTPStatus.OK
-    except:
-        return b"Server Error", "text/plain", HTTPStatus.INTERNAL_ERROR
+    except Exception as e:
+        print(f"[serve_static] error reading file {path}: {e}")
+        return f"Server Error {e}", "text/plain", HTTPStatus.INTERNAL_ERROR
 
 # === Request handler ===
 def handle_client(client_sock: socket.socket):
@@ -54,13 +56,15 @@ def handle_client(client_sock: socket.socket):
         client_sock.close()
         return
 
+    print(f"[MAIN][handle_client] received request: {req}")
     # "/"
     if req["method"] == "GET" and req["path"] == "/":
         data, mime, code = serve_static("index.html")
         hd = {"Content-Type": mime}
+        headers: dict[str, str] = {}
         if code == HTTPStatus.OK:
-            hd["Content-Length"] = str(len(data))
-        send_response(client_sock, create_response(HTTPStatus(code), data, mime, hd))
+            headers["Content-Length"] = str(len(data))
+        send_response(client_sock, create_response(HTTPStatus(code), data, mime, headers))
         client_sock.close()
         return
 
@@ -75,9 +79,15 @@ def handle_client(client_sock: socket.socket):
         return
 
     # "/api/*"
-    def send(status: HTTPStatus, headers: dict[str, str] , body: bytes=b""):
-        headers = headers or {}
-        response = create_response(status, body, headers.get("Content-Type", "text/plain"), headers)
+    def send(raw_response: HTTPResponseType):
+        headers = raw_response.get("header",{})
+        response = create_response(
+            raw_response.get("status", HTTPStatus.INTERNAL_ERROR),
+            str(raw_response.get("body", "")),
+            str(headers.get("Content-Type", "text/plain")),
+            headers
+        )
+        print(f"[MAIN][handle_client] sent response {response.decode('utf-8', 'ignore')}")
         client_sock.sendall(response)
 
     if dispatch(req, send):
@@ -94,7 +104,7 @@ def main():
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind((ports.backend_hostname, ports.backend_port))
         s.listen(5)
-        print(f"Server running on {ports.backend_hostname}:{ports.backend_port}")
+        print(f"Server running on {s.getsockname()[0]}:{s.getsockname()[1]}")
         while True:
             cli, _ = s.accept()
             threading.Thread(target=handle_client, args=[cli], daemon=True).start()

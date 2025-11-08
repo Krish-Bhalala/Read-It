@@ -1,4 +1,3 @@
-# socket_io/connection.py
 import socket
 import re
 
