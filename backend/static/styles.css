@@ -9,7 +9,7 @@
     --reddit-blue: #0079D3;
     --reddit-dark: #1A1A1B;
     --reddit-gray: #878A8C;
-    --reddit-lightest-gray: #ecf2fa;
+    --reddit-lightest-gray: #F6F7F8;
     --reddit-light-gray: #DAE0E6;
     --reddit-bg: #DAE0E6;
     --reddit-card: #FFFFFF;
@@ -121,26 +121,25 @@ body {
     display: flex;
     gap: 8px;
     margin-bottom: 24px;
-    border-bottom: 1px solid var(--reddit-lightest-gray);
+    border-bottom: 1px solid var(--reddit-light-gray);
 }
 
 .tab-btn {
     flex: 1;
     padding: 12px;
     background: none;
-    border: var(--reddit-gray);
+    border: none;
     font-size: 14px;
     font-weight: 600;
     color: var(--reddit-gray);
     cursor: pointer;
-    border: 0.5px solid transparent;
-    border-bottom: 2.5px solid transparent;
+    border: 1px solid transparent;
     transition: all 0.2s;
 }
 
 .tab-btn:hover {
+    background: var(--reddit-lightest-gray);
     color: var(--reddit-dark);
-    background-color: var(--reddit-lightest-gray);
 }
 
 .tab-btn.active {
@@ -213,11 +212,14 @@ button {
 .btn-primary {
     background: var(--reddit-orange);
     color: white;
+    border: 2px solid var(--reddit-orange);
     padding: 8px 24px;
 }
 
 .btn-primary:hover {
-    background: #dc3c01;
+    color: var(--reddit-orange);
+    background: white;
+    border: 2px solid var(--reddit-orange);
 }
 
 .btn-primary:disabled {
@@ -285,7 +287,7 @@ button {
     gap: 16px;
 }
 
-/* Create Post Card */
+/* Post Card */
 .create-post-card {
     background: var(--reddit-card);
     border: 1px solid var(--reddit-light-gray);
@@ -395,7 +397,7 @@ button {
     background: var(--reddit-card);
     border: 1px solid var(--reddit-light-gray);
     border-radius: var(--border-radius);
-    padding: 12px 16px;
+    padding: 16px;
     box-shadow: var(--shadow-sm);
 }
 
@@ -403,6 +405,68 @@ button {
     font-size: 16px;
     font-weight: 600;
     color: var(--reddit-dark);
+    margin-bottom: 16px;
+}
+
+.filter-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-end;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-width: 150px;
+}
+
+.filter-group label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--reddit-gray);
+    text-transform: uppercase;
+}
+
+.filter-select {
+    padding: 8px 12px;
+    font-size: 14px;
+    border: 1px solid var(--reddit-light-gray);
+    border-radius: var(--border-radius);
+    background: var(--reddit-card);
+    color: var(--reddit-dark);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.filter-select:hover {
+    border-color: var(--reddit-gray);
+}
+
+.filter-select:focus {
+    outline: none;
+    border-color: var(--reddit-blue);
+    box-shadow: 0 0 0 1px var(--reddit-blue);
+}
+
+.btn-clear-filters {
+    padding: 8px 16px;
+    background: transparent;
+    color: var(--reddit-blue);
+    border: 1px solid var(--reddit-blue);
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    align-self: flex-end;
+}
+
+.btn-clear-filters:hover {
+    background: rgba(0, 121, 211, 0.1);
 }
 
 /* Messages Container */
@@ -489,8 +553,8 @@ button {
 }
 
 .delete-btn {
-    background: #FFEBEE;
-    color:  #da2c2c;
+    background: transparent;
+    color: var(--reddit-gray);
     padding: 6px 12px;
     font-size: 12px;
     border-radius: 4px;
@@ -498,8 +562,8 @@ button {
 }
 
 .delete-btn:hover {
-    color: #FFEBEE;
-    background: #da2c2c;
+    background: #FFEBEE;
+    color: #C62828;
 }
 
 /* Loading */
@@ -579,5 +643,18 @@ button {
 
     .logo span {
         display: none;
+    }
+
+    .filter-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filter-group {
+        min-width: 100%;
+    }
+
+    .btn-clear-filters {
+        align-self: stretch;
     }
 }

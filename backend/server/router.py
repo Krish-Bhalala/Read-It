@@ -31,7 +31,7 @@ def route(method: str, path: str) -> DecoratorFunctionType:
         # Return a function that replaces the original implementation of handler function to prevent calling handlers directly without dispatch
         def deny_direct_call(a: Any = None, b: Any = None):
             raise Exception(f"Direct call to {handler.__name__} is not allowed. Use dispatch() for calling it.")
-        print(f"[DEBUG][ROUTER] registered route {method} {path} to handler {handler.__name__}")
+        print(f"[ROUTER] Registered route {method} {path} to handler {handler.__name__}")
         return deny_direct_call
     return decorator
 

@@ -19,7 +19,6 @@ def now_ts() -> int:
 # === Static file serving ===
 def serve_static(rel_path: str) -> tuple[str | bytes, str, HTTPStatus]:
     path = os.path.abspath(os.path.join(STATIC_DIR, rel_path.lstrip("/")))
-    print(f"[serve_static] serving static file from path: {path}")
     if not path.startswith(os.path.abspath(STATIC_DIR)):
         # prevent accessing things outside the STATIC_DIR
         return "Forbidden", "text/plain", HTTPStatus.FORBIDDEN
@@ -56,7 +55,6 @@ def handle_client(client_sock: socket.socket):
         client_sock.close()
         return
 
-    print(f"[MAIN][handle_client] received request: {req}")
     # "/"
     if req["method"] == "GET" and req["path"] == "/":
         data, mime, code = serve_static("index.html")
@@ -87,7 +85,7 @@ def handle_client(client_sock: socket.socket):
             str(headers.get("Content-Type", "text/plain")),
             headers
         )
-        print(f"[MAIN][handle_client] sent response {response.decode('utf-8', 'ignore')}")
+        # print(f"[MAIN][handle_client] sent response {response.decode('utf-8', 'ignore')}")
         client_sock.sendall(response)
 
     if dispatch(req, send):

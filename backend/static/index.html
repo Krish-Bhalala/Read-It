@@ -32,7 +32,7 @@
             <div class="auth-container">
                 <div class="auth-header">
                     <h1>Welcome to Reddit</h1>
-                    <p>Join Conversation</p>
+                    <p>Join the conversation</p>
                 </div>
                 
                 <div id="authMessage"></div>
@@ -77,7 +77,7 @@
         <!-- App Section -->
         <div id="appSection" class="app-section hidden">
             <div class="main-content">
-                <!-- Create Post Card -->
+                <!-- Post Card -->
                 <div class="create-post-card">
                     <div class="user-avatar">
                         <svg width="38" height="38" viewBox="0 0 38 38" fill="none">
@@ -88,7 +88,9 @@
                     <button id="createPostTrigger" class="create-post-trigger">Create Post</button>
                 </div>
 
-                <!-- Create Post Modal -->
+                <div id="appMessage"></div>
+
+                <!-- Post Modal -->
                 <div id="createPostModal" class="modal hidden">
                     <div class="modal-overlay"></div>
                     <div class="modal-content">
@@ -100,8 +102,6 @@
                                 </svg>
                             </button>
                         </div>
-                        
-                        <div id="appMessage"></div>
 
                         <form id="createMessageForm">
                             <div class="form-group">
@@ -118,6 +118,32 @@
                 <!-- Sort Options -->
                 <div class="sort-bar">
                     <h2>Posts</h2>
+                    <div class="filter-controls">
+                        <div class="filter-group">
+                            <label>Sort by:</label>
+                            <select id="orderByFilter" class="filter-select">
+                                <option value="newest">Newest First</option>
+                                <option value="oldest">Oldest First</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Filter by author:</label>
+                            <select id="authorFilter" class="filter-select">
+                                <option value="">All Authors</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Show posts:</label>
+                            <select id="timeFilter" class="filter-select">
+                                <option value="">All Time</option>
+                                <option value="1h">Last Hour</option>
+                                <option value="24h">Last 24 Hours</option>
+                                <option value="7d">Last 7 Days</option>
+                                <option value="30d">Last 30 Days</option>
+                            </select>
+                        </div>
+                        <button id="clearFilters" class="btn-clear-filters">Clear Filters</button>
+                    </div>
                 </div>
 
                 <!-- Messages List -->

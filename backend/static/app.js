@@ -22,13 +22,27 @@ const createPostModal = document.getElementById('createPostModal');
 const closeModal = document.getElementById('closeModal');
 const cancelPost = document.getElementById('cancelPost');
 
+// Filter elements
+const orderByFilter = document.getElementById('orderByFilter');
+const authorFilter = document.getElementById('authorFilter');
+const timeFilter = document.getElementById('timeFilter');
+const clearFiltersBtn = document.getElementById('clearFilters');
+
+// Filter state
+let currentFilters = {
+  orderBy: 'newest',
+  author: '',
+  time: ''
+};
+
 // Auth tabs
 const tabBtns = document.querySelectorAll('.tab-btn');
 const authForms = document.querySelectorAll('.auth-form');
 
 // Tab switching
 tabBtns.forEach(btn => {
-  btn.addEventListener('click', () => {
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
     const tab = btn.dataset.tab;
     
     tabBtns.forEach(b => b.classList.remove('active'));
@@ -66,6 +80,7 @@ createPostModal.querySelector('.modal-overlay').addEventListener('click', () => 
 
 // Utility Functions
 function showMessage(container, message, type) {
+  console.log(container)
   container.innerHTML = `<div class="message-alert ${type}">${message}</div>`;
   setTimeout(() => {
     container.innerHTML = '';
@@ -84,54 +99,113 @@ function showAppView() {
   headerUser.classList.remove('hidden');
 }
 
-function parseStringToJSON(str) {
-  const regex = /('(.*?)')|("(.*?)")/g;
-  const result = str.replace(regex, (match, g1, g2, g3, g4) => {
-    if (g1) {
-      return `"${g2.replace(/"/g, '\\"')}"`;
-    }
-    return match;
-  });
-  return JSON.parse(result);
-}
-
 function parseMessagesToJSON(jsonString) {
-    let trimmed = jsonString.trim();
-    if (trimmed.startsWith('[')) trimmed = trimmed.slice(1);
-    if (trimmed.endsWith(']')) trimmed = trimmed.slice(0, -1);
-
-    let parts = trimmed.split('}, {');
-    let result = parts.map((part, index) => {
-        if (index === 0) part += '}';
-        else if (index === parts.length - 1) part = '{' + part;
-        else part = '{' + part + '}';
-        return parseStringToJSON(part);
-    });
-
-    return result;
+    return JSON.parse(jsonString);
 }
+
+const apiMessages = {
+  "/api/user": {
+    200: "User info retrieved successfully.",
+    400: "Invalid request for user information.",
+    401: "You must be logged in to view user information.",
+    403: "Access to user information is forbidden.",
+    404: "User not found.",
+    405: "Method not allowed for user information.",
+    500: "Server error while retrieving user information.",
+    429: "Too many requests to user info. Please slow down."
+  },
+  "/api/register": {
+    201: "User registered successfully.",
+    400: "Registration request invalid. Check input.",
+    405: "Registration failed",
+    409: "User already exists.",
+    500: "Server error during registration.",
+    429: "Too many registration attempts. Please wait."
+  },
+  "/api/login": {
+    200: "Login successful.",
+    400: "Invalid login request.",
+    401: "Incorrect username or password.",
+    403: "Account is locked or forbidden.",
+    404: "User not found.",
+    405: "Login failed.",
+    429: "Too many login attempts. Please wait.",
+    500: "Server error during login."
+  },
+  "DELETE /api/login": {
+    200: "Logout successful.",
+    401: "You must be logged in to logout.",
+    405: "Method not allowed for user information.",
+    429: "Too many logout attempts. Please wait.",
+    500: "Server error during logout."
+  },
+  "/api/messages": {
+    200: "Messages retrieved successfully.",
+    400: "Invalid request for messages.",
+    401: "You must be logged in to view messages.",
+    405: "Method not allowed for user information.",
+    403: "Access to messages is forbidden.",
+    500: "Server error while retrieving messages.",
+    429: "Too many requests. Slow down please."
+  },
+  "POST /api/messages": {
+    201: "Message created successfully.",
+    400: "Invalid message data.",
+    401: "You must be logged in to create messages.",
+    405: "Not allowed to retrieve messages",
+    403: "You do not have permission to create messages.",
+    429: "You are creating messages too fast, Please slow down.",
+    500: "Server error while creating message."
+  },
+  "DELETE /api/messages": {
+    200: "Message deleted successfully.",
+    400: "Invalid delete message request.",
+    401: "You must be logged in to delete messages.",
+    405: "Not allowed to delete message",
+    403: "You do not have permission to delete this message.",
+    404: "Message not found.",
+    429: "You are deleting too fast, Please slow down.",
+    500: "Server error while deleting message."
+  }
+};
+
+function getAPIMessage(endpoint, code, additionalInfo = "") {
+  const messages = apiMessages[endpoint];
+  if (!messages) return "Unknown API endpoint.";
+  let message = messages[code] || `An unexpected error occurred (code: ${code})`;
+  if (code >= 400 && messages[code] && additionalInfo) {
+    return `${message} ${additionalInfo}`;
+  }
+  return message;
+}
+
 
 // API Functions using XHR
 function checkCurrentUser() {
   const xhr = new XMLHttpRequest();
   xhr.open('GET', `${API_BASE}/user`);
-    
+
   xhr.onload = function() {
     const data = xhr.responseText;
-    if (xhr.status >= 200 && xhr.status < 300) {
+    const status = xhr.status;
+    const message = getAPIMessage('/api/user', status);
+    let type = 'success'
+    if (status >= 200 && status < 300) {
       currentUser = data.username || data.user || data;
       currentUserSpan.textContent = currentUser;
       showAppView();
       loadMessages();
     } else {
-      console.log('[DEBUG] No current user found due to {data}');
+      type = 'error';
       showAuthView();
     }
+    console.log(message);
   };
   
   xhr.onerror = function() {
     console.error('Error checking user');
     showAuthView();
+    showMessage(authMessage, 'Network error occurred', 'error');
   };
   
   xhr.send();
@@ -141,34 +215,31 @@ function loginUser(username, password) {
   const xhr = new XMLHttpRequest();
   xhr.open('POST', `${API_BASE}/login`);
   xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-    
+
   xhr.onload = function() {
     const data = xhr.responseText;
+    const status = xhr.status;
+    const message = getAPIMessage('/api/login', status, data);
+    let type = 'success';
     if (xhr.status >= 200 && xhr.status < 300) {
-      showMessage(authMessage, `Login successful! - ${data}`, 'success');
       currentUser = username;
       currentUserSpan.textContent = currentUser;
       loginForm.reset();
       setTimeout(() => {
-        console.log('[DEBUG] Showing app view after login');
         showAppView();
         loadMessages();
       }, 1000);
-    } else {
-      console.log(`[DEBUG] Login failed with response: ${data}`);  
-      try {
-        showMessage(authMessage, data || 'Login failed', 'error');
-      } catch (e) {
-        showMessage(authMessage, `Login failed due to ${e}`, 'error');
-      }
+    } else { 
+      type = 'error';
     }
+    showMessage(authMessage, message, type);
   };
   
   xhr.onerror = function() {
     showMessage(authMessage, 'Network error occurred', 'error');
   };
   
-  xhr.send(`username=${username}&password=${password}`);
+  xhr.send(`username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`);
 }
 
 function registerUser(username, password) {
@@ -178,49 +249,94 @@ function registerUser(username, password) {
 
   xhr.onload = function() {
     const data = xhr.responseText;
-    if (xhr.status >= 200 && xhr.status < 300) {
-      showMessage(authMessage, `Registration successful! You can now login. ${data}`, 'success');
+    const status = xhr.status;
+    const message = getAPIMessage('/api/register', status, data);
+    let type = 'success';
+    if (status >= 200 && status < 300) {
       registerForm.reset();
       // Switch to login tab
       tabBtns[0].click();
     } else {
-      console.log(`[DEBUG] Registration failed with response: ${data}`);
-      try {
-        showMessage(authMessage, data || `Registration failed ${data}`, 'error');
-      } catch (e) {
-        showMessage(authMessage, `Registration failed due to exception ${data}`, 'error');
-      }
+      type = 'error';
     }
+    showMessage(authMessage, message, type);
   };
   
   xhr.onerror = function() {
     showMessage(authMessage, 'Network error occurred', 'error');
   };
   
-  xhr.send(`username=${username}&password=${password}`);
+  xhr.send(`username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`);
 }
 
 function logoutUser() {
   const xhr = new XMLHttpRequest();
   xhr.open('DELETE', `${API_BASE}/login`);
-    
+
   xhr.onload = function() {
-    if (xhr.status >= 200 && xhr.status < 300) {
-      showMessage(appMessage, 'Logged out successfully!', 'info');
+    const data = xhr.responseText;
+    const status = xhr.status;
+    const message = getAPIMessage('DELETE /api/login', status, data);
+    let type = 'success';
+    if (status >= 200 && status < 300) {
       currentUser = null;
       setTimeout(() => {
         showAuthView();
       }, 1000);
     } else {
-      showMessage(appMessage, 'Logout failed', 'error');
+      type = 'error';
     }
+    showMessage(appMessage, message, type);
   };
-  
+
   xhr.onerror = function() {
     showMessage(appMessage, 'Network error occurred', 'error');
   };
-  
+
   xhr.send();
+}
+
+function getFilterSettings() {
+  // Build settings headers based on current filters
+  const settings = {};
+  
+  // Order-by filter
+  if (currentFilters.orderBy === 'oldest') {
+    settings['order-by'] = 'oldest';
+  }else {
+    settings['order-by'] = 'newest';
+  }
+  
+  // Author filter
+  if (currentFilters.author) {
+    settings['group-author'] = currentFilters.author;
+  }
+  
+  // Time filter (calculate timestamp for "last" parameter)
+  if (currentFilters.time) {
+    const now = Date.now() * 1000000; // Convert to nanoseconds
+    let timeAgo = 0;
+    
+    switch(currentFilters.time) {
+      case '1h':
+        timeAgo = 60 * 60 * 1000 * 1000000; // 1 hour in nanoseconds
+        break;
+      case '24h':
+        timeAgo = 24 * 60 * 60 * 1000 * 1000000; // 24 hours
+        break;
+      case '7d':
+        timeAgo = 7 * 24 * 60 * 60 * 1000 * 1000000; // 7 days
+        break;
+      case '30d':
+        timeAgo = 30 * 24 * 60 * 60 * 1000 * 1000000; // 30 days
+        break;
+    }
+    
+    if (timeAgo > 0) {
+      settings['last'] = String(now - timeAgo);
+    }
+  }
+  return settings;
 }
 
 function loadMessages() {
@@ -232,14 +348,26 @@ function loadMessages() {
   `;
   
   const xhr = new XMLHttpRequest();
-  xhr.open('GET', `${API_BASE}/messages`);
-    
+  let URI = `${API_BASE}/messages`;
+
+  const settings = getFilterSettings();
+
+  // Set settings in URI query parameters
+  for (const [key, value] of Object.entries(settings)) {
+    URI += (URI.includes('?') ? '&' : '?') + `${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+  }
+
+  xhr.open('GET', URI);
   xhr.onload = function() {
     const data = xhr.responseText;
+    const status = xhr.status;
+    const message = getAPIMessage('/api/messages', status, data);
     if (xhr.status >= 200 && xhr.status < 300) {
-      displayMessages(parseMessagesToJSON(data));
+      const messages = parseMessagesToJSON(data);
+      displayMessages(messages);
+      updateAuthorFilter(messages);
     } else {
-      messagesContainer.innerHTML = `<div class="error">Failed to load messages due to ${data}</div>`;
+      messagesContainer.innerHTML = `<div class="error">Failed to load messages due to ${message}</div>`;
     }
   };
   
@@ -255,8 +383,11 @@ function createMessage(message) {
   xhr.open('POST', `${API_BASE}/messages`);
   xhr.setRequestHeader('Content-Type', 'application/json');
 
-  const data = xhr.responseText;
   xhr.onload = function() {
+    const data = xhr.responseText;
+    const status = xhr.status;
+    const message = getAPIMessage('POST /api/messages', status, data);
+    let type = 'success';
     if (xhr.status >= 200 && xhr.status < 300) {
       showMessage(appMessage, `Message posted successfully! ${data}`, 'success');
       createMessageForm.reset();
@@ -264,15 +395,11 @@ function createMessage(message) {
       document.body.style.overflow = 'auto';
       loadMessages();
     } else {
-      console.log(`[DEBUG] Create message failed with response: ${data}`);
-      try {
-        showMessage(appMessage, data || 'Failed to post message', 'error');
-      } catch (e) {
-        showMessage(appMessage, `Failed to post message due to exception ${e}`, 'error');
-      }
+      type = 'error';
     }
+    showMessage(appMessage, message, type);
   };
-  
+
   xhr.onerror = function() {
     showMessage(appMessage, 'Network error occurred', 'error');
   };
@@ -280,28 +407,28 @@ function createMessage(message) {
   const author = currentUser.username || currentUser;
   console.log(`[DEBUG] Creating message as user: ${author}`);
   console.log(`[DEBUG] Message content: ${message}`);
-  xhr.send(`author=${author}&msg=${message}`);
+  xhr.send(`author=${encodeURIComponent(author)}&msg=${message}`);
 }
 
 function deleteMessage(messageId) {
   const xhr = new XMLHttpRequest();
-  xhr.open('DELETE', `${API_BASE}/messages`);
+  let URI = `${API_BASE}/messages`;
+  URI += (URI.includes('?') ? '&' : '?') + `id=${encodeURIComponent(messageId)}`;
+  xhr.open('DELETE', URI);
   xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.setRequestHeader('id', messageId)
 
   xhr.onload = function() {
     const data = xhr.responseText;
+    const status = xhr.status;
+    const message = getAPIMessage('DELETE /api/messages', status, data);
+    let type = 'success';
     if (xhr.status >= 200 && xhr.status < 300) {
       showMessage(appMessage, `Message deleted successfully! ${data}`, 'success');
       loadMessages();
     } else {
-      console.log(`[DEBUG] Delete message failed with error ${data}`);
-      try {
-        showMessage(appMessage, data || 'Failed to delete message', 'error');
-      } catch (e) {
-        showMessage(appMessage, `Failed to delete message ${e}`, 'error');
-      }
+      type = 'error';
     }
+    showMessage(appMessage, message, type);
   };
 
   xhr.onerror = function() {
@@ -384,6 +511,44 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// Filter functions
+function updateAuthorFilter(messages) {
+  const authors = new Set();
+  messages.forEach(msg => {
+    const author = msg.author || msg.username;
+    if (author) authors.add(author);
+  });
+  
+  const currentSelection = authorFilter.value;
+  authorFilter.innerHTML = '<option value="">All Authors</option>';
+  
+  Array.from(authors).sort().forEach(author => {
+    const option = document.createElement('option');
+    option.value = author;
+    option.textContent = `u/${author}`;
+    authorFilter.appendChild(option);
+  });
+  
+  // Restore selection if it still exists
+  if (currentSelection && authors.has(currentSelection)) {
+    authorFilter.value = currentSelection;
+  }
+}
+
+function resetFilters() {
+  currentFilters = {
+    orderBy: 'newest',
+    author: '',
+    time: ''
+  };
+
+  orderByFilter.value = 'newest';
+  authorFilter.value = '';
+  timeFilter.value = '';
+
+  loadMessages();
+}
+
 // Event Listeners
 loginForm.addEventListener('submit', (e) => {
   e.preventDefault();
@@ -403,8 +568,29 @@ createMessageForm.addEventListener('submit', (e) => {
   createMessage(formData.get('message'));
 });
 
-logoutBtn.addEventListener('click', () => {
+logoutBtn.addEventListener('click', (e) => {
+  e.preventDefault();
   logoutUser();
+});
+
+// Filter event listeners
+orderByFilter.addEventListener('change', (e) => {
+  currentFilters.orderBy = e.target.value;
+  loadMessages();
+});
+
+authorFilter.addEventListener('change', (e) => {
+  currentFilters.author = e.target.value;
+  loadMessages();
+});
+
+timeFilter.addEventListener('change', (e) => {
+  currentFilters.time = e.target.value;
+  loadMessages();
+});
+
+clearFiltersBtn.addEventListener('click', () => {
+  resetFilters();
 });
 
 // Initial check for current user

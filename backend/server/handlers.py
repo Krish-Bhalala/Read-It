@@ -1,6 +1,8 @@
 import sys
 import os
 import re
+import json
+from typing import Any
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
@@ -20,7 +22,7 @@ def who_am_i(req: RequestDictType, send: SenderFunctionType) -> HTTPResponseType
 
     username = req.get("query", {}).get("username")
     if not username:
-        print(f"[HANDLERS][register_user] No username found in request query {req}")
+        print(f"[HANDLERS][who_am_i] Bad Request: Must have username field URI of request")
         return response
 
     if authenticate(req["headers"].get("cookie", "")) == False:
@@ -84,18 +86,17 @@ def register_user(req: RequestDictType, send: SenderFunctionType) -> HTTPRespons
         response["body"] = user["id"]
         response["status"] = HTTPStatus.CREATED
         response["header"]["Set-Cookie"] = start_session(username)
-    elif status == HTTPStatus.RATE_LIMITED:
+    elif status == HTTPStatus.RATE_LIMITED or query_result.get("error", "") == "RATE_LIMIT":
         response["status"] = HTTPStatus.RATE_LIMITED
-        response["body"] = "Rate limit exceeded when trying to register, please try again later"
+        response["body"] = query_result.get("reason", "")
     elif "ALREADY_EXISTS" in query_result.get("error", ""):
         response["status"] = HTTPStatus.CONFLICT
         response["body"] = f"Can't register {username} in our system, it already exists"
     else:
+        print(f"[HANDLERS][register_user] Internal Error with status {status} in database query result: {query_result}")
         response["status"] = HTTPStatus.INTERNAL_ERROR
-        print(query_result)
         response["body"] = f"Something wrong happened when trying to register {username} in database with status {status} and the user id validation {user_id_valid}"
 
-    print(f"[HANDLERS][register_user] {response}")
     return response
 # curl -X POST -d "method=AddUser&username=adam&password=yohohoho" http://owl.cs.umanitoba.ca:8888
 """
@@ -135,15 +136,15 @@ def login_user(req: RequestDictType, send: SenderFunctionType) -> HTTPResponseTy
     )
 
     if status != HTTPStatus.OK or not user_id_valid:
-        if status == HTTPStatus.RATE_LIMITED:
+        if status == HTTPStatus.RATE_LIMITED or query_result.get("error", "") == "RATE_LIMIT":
             response["status"] = HTTPStatus.RATE_LIMITED
-            response["body"] = "Rate limit exceeded when trying to login, please try again later"
+            response["body"] = query_result.get("reason", "")
         elif "NO_RECORD" in query_result.get("error", ""):
             response["status"] = HTTPStatus.METHOD_NOT_ALLOWED
             response["body"] = f"username '{username}' does not exist in our system, please register first"
         else:
+            print(f"[HANDLERS][login_user] Internal Error with status {status} in database query result: {query_result}")
             response["status"] = HTTPStatus.INTERNAL_ERROR
-            print(query_result)
             response["body"] = (f"Something wrong happened when trying to register {username} "
                                 f"in database with status {status} and the user id validation {user_id_valid}")
     else:
@@ -156,7 +157,6 @@ def login_user(req: RequestDictType, send: SenderFunctionType) -> HTTPResponseTy
             response["header"]["Set-Cookie"] = start_session(username)
             response["body"] = f"Successfully logged in user {username}"
 
-    print(f"[HANDLERS][login_user] {response}")
     return response
 """
 curl -X POST http://owl.cs.umanitoba.ca:8888/api/login -H "Content-Type: application/x-www-form-urlencoded" -d "username=adam&password=yohohoho"
@@ -180,16 +180,15 @@ def logout_user(req: RequestDictType, send: SenderFunctionType) -> HTTPResponseT
 curl -X DELETE http://owl.cs.umanitoba.ca:8888/api/login -H "Cookie:<session_id>;"
 """
 
-def _filter_messages(msgs: list[dict[str, str]], settings: dict[str, str]) -> list[dict[str, str]]:
-    if settings.get("order-by") == "oldest":
-        return msgs
-    msgs = list(reversed(msgs))
-    if "last" in settings:
-        return [msg for msg in msgs if int(msg.get("time", 0)) > int(settings["last"])]
-    if "orderby-author" in settings:
-        author = settings["orderby-author"]
-        return [msg for msg in msgs if msg.get("author", "") == author]
-    return msgs
+def _filter_messages(msgs: list[dict[str, str]], settings: dict[str, Any]) -> str:
+    if settings.get("order-by") == "newest":
+        msgs = list(reversed(msgs))
+    if "last" in settings and isinstance(settings["last"], str) and settings["last"].isdigit():
+        msgs = [msg for msg in msgs if int(msg.get("time", 0)) > int(settings["last"])]
+    if "group-author" in settings:
+        author = settings["group-author"]
+        msgs = [msg for msg in msgs if msg.get("author", "") == author]
+    return json.dumps(msgs)
 
 @get("/api/messages")
 def get_messages(req: RequestDictType, send: SenderFunctionType) -> HTTPResponseType:
@@ -210,15 +209,15 @@ def get_messages(req: RequestDictType, send: SenderFunctionType) -> HTTPResponse
         "method": "GetMessages",
     }
     query_result = query_database(request)
-    
+
     if query_result.get("status", "") == HTTPStatus.OK:
         response["status"] = HTTPStatus.OK
-        filtered_msgs = _filter_messages(query_result.get("msgs", []), req.get("filter-settings", {"oder-by": "latest"}))
-        response["body"] = str(filtered_msgs)
-    elif query_result.get("status", "") == HTTPStatus.RATE_LIMITED:
+        response["body"] = _filter_messages(query_result.get("msgs", []), req.get("query", {"order-by": "latest"}))
+    elif query_result.get("status", "") == HTTPStatus.RATE_LIMITED or query_result.get("error", "") == "RATE_LIMIT":
         response["status"] = HTTPStatus.RATE_LIMITED
-        response["body"] = "Rate limit exceeded when trying to get messages from database, please try again later"
+        response["body"] = query_result.get("reason", "")
     else:
+        print(f"[HANDLERS][get_messages] Internal Error with status {query_result.get('status', '')} in database query result: {query_result}")
         response["status"] = HTTPStatus.INTERNAL_ERROR
         response["body"] = "Failed to retrieve messages from database"
 
@@ -260,14 +259,14 @@ def create_message(req: RequestDictType, send: SenderFunctionType) -> HTTPRespon
         "msg": msg
     }
     query_result = query_database(request)
-    print(f"\n[HANDLERS][create_message] query_result: {query_result}\n")
     if query_result.get("status", "") == HTTPStatus.OK:
         response["status"] = HTTPStatus.CREATED
         response["body"] = str(query_result.get("id", ""))
-    elif query_result.get("status", "") == HTTPStatus.RATE_LIMITED:
+    elif query_result.get("status", "") == HTTPStatus.RATE_LIMITED or query_result.get("error", "") == "RATE_LIMIT":
         response["status"] = HTTPStatus.RATE_LIMITED
-        response["body"] = "Rate limit exceeded when trying to create message in database, please try again later"
+        response["body"] = query_result.get("reason", "")
     else:
+        print(f"[HANDLERS][create_message] Internal Error with status {query_result.get('status', '')} in database query result: {query_result}")
         response["status"] = HTTPStatus.INTERNAL_ERROR
         response["body"] = "Failed to create message in database"
 
@@ -290,7 +289,7 @@ def delete_message(req: RequestDictType, send: SenderFunctionType) -> HTTPRespon
         return response
 
     # Get the message ID from query parameters
-    msg_id = req.get("headers", {}).get("id")
+    msg_id = req.get("query", {}).get("id")
     if not msg_id:
         response["body"] = f"Must have id field in the query parameters {req}"
         return response
@@ -308,14 +307,14 @@ def delete_message(req: RequestDictType, send: SenderFunctionType) -> HTTPRespon
         "id": msg_id_int
     }
     query_result = query_database(request)
-    print(f"\n[HANDLERS][delete_message] query_result: {query_result}\n")
     if query_result.get("status", "") == HTTPStatus.OK:
         response["status"] = HTTPStatus.OK
         response["body"] = f"Successfully deleted message with id {msg_id_int}"
-    elif query_result.get("status", "") == HTTPStatus.RATE_LIMITED:
+    elif query_result.get("status", "") == HTTPStatus.RATE_LIMITED or query_result.get("error", "") == "RATE_LIMIT":
         response["status"] = HTTPStatus.RATE_LIMITED
-        response["body"] = "Rate limit exceeded when trying to delete message from database, please try again later"
+        response["body"] = query_result.get("reason", "")
     else:
+        print(f"[HANDLERS][delete_message] Internal Error with status {query_result.get('status', '')} in database query result: {query_result}")
         response["status"] = HTTPStatus.INTERNAL_ERROR
         response["body"] = f"Failed to delete message with id {msg_id_int} from database"
 

@@ -30,7 +30,6 @@ def receive_database(sock: socket.socket, buffer_size: int = 4096) -> dict[str, 
     if len(length_bytes) < RECV_SIZE:
         return {"status": HTTPStatus.INTERNAL_ERROR.value, "reason": f"received only {len(length_bytes)} instead of {RECV_SIZE}"}
     length = int.from_bytes(length_bytes, byteorder='big', signed=False)
-    print(f"length {length}")
     data = b""
     while len(data) < length:
         more = sock.recv(min(buffer_size, length - len(data)))
@@ -39,8 +38,11 @@ def receive_database(sock: socket.socket, buffer_size: int = 4096) -> dict[str, 
         data += more
 
     response = json.loads(data.decode('utf-8', errors="ignore"))
-    if response["status"] != DB_API_SUCCESS_CODE:
-        response["status"] = HTTPStatus.INTERNAL_ERROR.value
+    status = response.get("status", HTTPStatus.INTERNAL_ERROR.value)
+    if status == DB_RATELIMIT_CODE:
+        response["error"] = "RATE_LIMIT"
+        response["status"] = HTTPStatus.RATE_LIMITED.value
+    elif status != DB_API_SUCCESS_CODE:
         response["reason"] = "Something went wrong with db in executing query"
     else:
         response["status"] = HTTPStatus.OK.value
@@ -62,11 +64,11 @@ def query_database(query: dict[str, Any]) -> dict[str, Any]:
     except Exception as e:
         return {"status": HTTPStatus.INTERNAL_ERROR.value, "reason": str(e)}
 
-    if response.get("status") == DB_RATELIMIT_CODE:
+    if response.get("status") == HTTPStatus.RATE_LIMITED.value:
         print("[DB INTERFACE] triggered rate limit from database")
         with rate_limit_lock:
             rate_limit_until = time.time() + RATE_LIMIT_COOL_DOWN
-        response = {"status": HTTPStatus.RATE_LIMITED.value, "reason": f"Triggered rate limit, please wait {RATE_LIMIT_COOL_DOWN} sec"}
+        response = {"status": HTTPStatus.RATE_LIMITED.value, "reason": f"Please retry in {RATE_LIMIT_COOL_DOWN} sec"}
 
     return response
 

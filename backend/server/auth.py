@@ -33,7 +33,7 @@ class SessionCookie:
 ID_TO_COOKIE: dict[str, SessionCookie] = {}
 cookies_lock = threading.Lock()
 
-def start_session(user_id: str, ttl_seconds: int = 180) -> str:
+def start_session(user_id: str, ttl_seconds: int = 300) -> str:
     session = SessionCookie(ttl_seconds, user_id)
     with cookies_lock:
         ID_TO_COOKIE[session.session_id] = session
@@ -63,11 +63,11 @@ def authenticate(cookie: str) -> str | bool:
     with cookies_lock:
         session = ID_TO_COOKIE.get(session_id)
         if not session:
-            print("[AUTH CHECK] session id not found")
+            print(f"[AUTH] session {session_id} is no longer valid")
             return False        # session id not found
         if session.expiry > time.time():
             session.refresh()
-            print("[AUTH] session is still valid")
+            print("[AUTH] refreshed session")
             return session.user_id
         else:
             print(f"[AUTH] session expired {time.time() - session.ttl}")
