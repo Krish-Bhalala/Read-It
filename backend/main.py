@@ -56,7 +56,7 @@ def serve_static(rel_path: str) -> tuple[str | bytes, str, HTTPStatus]:
 
         # Inject backend config into app.js
         if rel_path.lstrip("/") == "app.js":
-            api_base = f"http://{Addresses.deployment_addr}/api"
+            api_base = f"https://{Addresses.deployment_addr}/api"
             data = data.replace(b"{{API_BASE}}", api_base.encode("utf-8"))
 
         return data, mime, HTTPStatus.OK
