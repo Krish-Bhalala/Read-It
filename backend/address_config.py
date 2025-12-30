@@ -15,6 +15,7 @@ class Addresses:
         os.getenv("HOST", "0.0.0.0"),
         int(os.getenv("PORT", "10000")),
     )
+    deployment_addr: tuple[str, int] = os.getenv("DEPLOYMENT_ADDR", "0.0.0.0:10000")
     database_addr: tuple[str, int] = (
         os.getenv("DATABASE_HOST", "cormorant.cs.umanitoba.ca"),
         int(os.getenv("DATABASE_PORT", "50042")),
