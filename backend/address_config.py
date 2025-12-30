@@ -19,3 +19,15 @@ class Addresses:
         os.getenv("DATABASE_HOST", "cormorant.cs.umanitoba.ca"),
         int(os.getenv("DATABASE_PORT", "50042")),
     )
+
+
+class ValkeyConfig:
+    """
+    Configuration class for Valkey (Redis-compatible) database connection.
+    """
+
+    # Service URI from Aiven - format: rediss://user:password@host:port
+    url: str = os.getenv("VALKEY_URL", "")
+
+    # Use Valkey instead of professor's DB
+    use_valkey: bool = os.getenv("USE_VALKEY", "true").lower() == "true"

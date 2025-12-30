@@ -12,7 +12,8 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(parent_dir)
 
 from constants import HTTPStatus
-from address_config import Addresses
+from address_config import Addresses, ValkeyConfig
+from server.valkey_adapter import execute_query as valkey_execute_query
 
 # Configuration constants for rate limiting
 RATE_LIMIT_COOL_DOWN = 2  # Seconds to wait after a rate limit is hit
@@ -97,15 +98,19 @@ def receive_database(sock: socket.socket, buffer_size: int = 4096) -> dict[str, 
 
 def query_database(query: dict[str, Any]) -> dict[str, Any]:
     """
-    Establishes a connection to the database, sends a query, receives the response,
-    and handles local rate limiting.
+    Executes a database query. Routes to Valkey adapter or legacy socket-based DB
+    based on configuration.
 
     :param query: The dictionary containing the database query request.
     :returns: The database response dictionary, potentially modified with HTTP status codes.
     """
     global rate_limit_until
 
-    # Check for local rate limit before attempting connection
+    # Use Valkey adapter if enabled
+    if ValkeyConfig.use_valkey:
+        return valkey_execute_query(query)
+
+    # Legacy: Check for local rate limit before attempting connection
     with rate_limit_lock:
         if time.time() <= rate_limit_until:
             return {
@@ -130,6 +135,7 @@ def query_database(query: dict[str, Any]) -> dict[str, Any]:
         print("[DB INTERFACE] triggered rate limit from database")
         with rate_limit_lock:
             rate_limit_until = time.time() + RATE_LIMIT_COOL_DOWN  # Set the block time
+            print(rate_limit_until)
         # Overwrite the db response to custom server side response
         response = {
             "status": HTTPStatus.RATE_LIMITED.value,
