@@ -12,8 +12,8 @@ class Addresses:
     """
 
     backend_addr: tuple[str, int] = (
-        os.getenv("BACKEND_HOST", "aviary.cs.umanitoba.ca"),
-        int(os.getenv("BACKEND_PORT", "12345")),
+        os.getenv("HOST", "localhost"),
+        int(os.getenv("PORT", "12345")),
     )
     database_addr: tuple[str, int] = (
         os.getenv("DATABASE_HOST", "cormorant.cs.umanitoba.ca"),
