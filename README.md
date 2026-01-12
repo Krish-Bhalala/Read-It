@@ -20,7 +20,7 @@ This project follows a classic client-server architecture, but with every layer 
 ```mermaid
 graph LR
     User([User Browser]) <--> Server[Custom Python Socket Server]
-    Server <--> Valkey[(Valkey Cache Store)]
+    Server <--> Valkey[(Valkey on Aiven Cloud)]
     
     subgraph "Server Internals"
         Server --> Router
@@ -62,7 +62,13 @@ sequenceDiagram
 ### 1. Custom HTTP Stack
 I bypassed `WSGI` and `ASGI` entirely. The server listens on a TCP port and manually parses the incoming byte stream into standard HTTP components (Method, Path, Headers, Query Parameters, and Body). This ensures a deep understanding of how `Content-Length`, `MIME-types`, and `Keep-Alive` work.
 
-### 2. Multi-threaded Concurrency
+### 2. Client-Side Rendering (Dynamic SPA)
+Unlike traditional static sites, this application acts as a **Single Page Application (SPA)**:
+- **XHR & JSON**: The frontend uses `XMLHttpRequest` (XHR) to communicate with the server via `application/json` messages.
+- **Dynamic DOM**: Instead of reloading the page, the JavaScript receives JSON data and dynamically updates the DOM, handling state changes for login, registration, and live forum updates.
+- **Micro-Framework Style**: I implemented a basic client-side router and state manager to replicate how frameworks like React or Vue handle view updates without a library.
+
+### 3. Multi-threaded Concurrency
 To support multiple users simultaneously, the server spawns a new thread for every incoming connection. This prevents blocking and allows the messenger app to be responsive even under load.
 
 ### 3. Hand-rolled Authentication & Sessions
@@ -70,8 +76,23 @@ To support multiple users simultaneously, the server spawns a new thread for eve
 - **Cookie Generation**: Custom `Set-Cookie` header generation with `HttpOnly`, `Path`, and `Max-Age` attributes.
 - **Persistent State**: Since the server is multi-threaded, I implemented thread-safe session management using global locks and a centralized storage adapter.
 
-### 4. Valkey Cache Integration
-For persistent data (users and messages), the server uses a **Valkey** (Redis-compatible) cache store. I wrote a dedicated adapter that translates "Database-like" queries into Valkey commands (Hashes and Sorted Sets), ensuring fast lookups and persistent storage across server restarts.
+### 4. Valkey Cache (Aiven Cloud)
+For persistent data (users and messages), the server uses a **Valkey** (Redis-compatible) cache store hosted on **Aiven Cloud**. I wrote a dedicated adapter that translates "Database-like" queries into Valkey commands (Hashes and Sorted Sets), ensuring fast lookups and persistent storage across server restarts.
+
+*Pls Note: The database is running on a free instance, so it might go into sleep after inactivity. The webserver will handle this gracefully, but the deployed demo may occasionally return an error code if the instance is waking up*
+
+---
+
+## Screenshots
+
+*Screen to login and Register*
+![Login Screen](assets/LoginScreen.png)
+
+*Discussion forum screen*
+![Forum Screen](assets/ForumScreen.png)
+
+*Server side sorting and filtering features*
+![Server Side Logic](assets/ServerSideFeature.png)
 
 ---
 
@@ -81,7 +102,7 @@ For persistent data (users and messages), the server uses a **Valkey** (Redis-co
 | :--- | :--- |
 | **Core** | Python 3 |
 | **Networking** | `socket`, `threading` |
-| **Data Store** | Valkey (Redis Alternative) |
+| **Data Store** | Valkey (via Aiven Cloud) |
 | **Security** | `secrets`, `re` (Regex for injection protection) |
 | **Deployment** | Render.com |
 
@@ -102,11 +123,11 @@ For persistent data (users and messages), the server uses a **Valkey** (Redis-co
    python main.py
    ```
 
-### Cloud Deployment (Render.com)
+### Cloud Deployment
 1. Link your GitHub repository to Render.
-2. Create a **Web Service** for the backend.
-3. Create a **Reddis/Valkey** instance and copy the connection URL into the environment variables.
-4. Render will automatically detect the entry point if you point it to `main.py`.
+2. Create a **Web Service** on **Render.com** for the backend.
+3. Create a **Valkey** instance on **Aiven Cloud** and copy the Connection URI.
+4. Add the connection URI to Render's environment variables as `VALKEY_URL`.
 
 ---
 
